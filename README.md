@@ -1,1 +1,1 @@
-# This project is for Zillow Kaggle Competition
+# For test only
