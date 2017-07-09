@@ -17,5 +17,6 @@ train['transactiondate'] = pd.to_datetime(train['transactiondate'])
 parcelid = list(train['parcelid'])
 feature = pd.read_csv('../data/properties_2016.csv')
 feature = feature.ix[feature['parcelid'].isin(parcelid)]
+feature.to_csv('../data/properties_2016_subset.csv', index=False)
 
 # 
