@@ -2,6 +2,6 @@
 """
 Created on Fri Jul  7 14:16:00 2017
 
-@author: Shuxin Xu
+@author: Shuxin Xu, Tao Hong
 """
 
