@@ -46,7 +46,7 @@ def na_check(df):
     na.sort_values(by='value', ascending=True, inplace=True)
     na.reset_index(inplace=True, drop=True)
 
-    fig = plt.figure(figsize=(10,15))
+    plt.figure(figsize=(10,15))
     plt.barh(na.index, na['value'], align='center')
     plt.yticks(na.index, na['name'])
     
@@ -57,7 +57,25 @@ def na_check(df):
     
     return na
     
-    
+ 
+
+def feature_plot(df,date_col,prediction_col):
+    cols = list(df.columns)
+    cols.remove(date_col)
+    cols.remove(prediction_col)
+    cols.remove('propertycountylandusecode')
+    cols.remove('propertyzoningdesc')
+    cols.remove('taxdelinquencyflag')
+    for col in cols:
+        
+        plt.figure()
+        plt.scatter(df[col], df[prediction_col])
+        plt.xlabel(col)
+        plt.ylabel(prediction_col)
+        plt.savefig(col+' against '+prediction_col+'.jpg')
+        
+
+   
     
 def data_partition(df,st,ed,spt,date_col,predition_col):
     

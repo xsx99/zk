@@ -43,6 +43,10 @@ train = pd.merge(feature, train, on='parcelid', how='right')
 # check missing value
 na=lb.na_check(train)
 
+
+# feature against dependent variable plot
+lb.feature_plot(train,'transactiondate','logerror')
+
 # parce catgorical varibles
 
 # scale variables
