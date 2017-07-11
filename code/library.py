@@ -13,6 +13,9 @@ import datetime as dt
 import matplotlib.pyplot as plt
 
 import statsmodels.tsa.api as tsa
+import statsmodels.formula.api as sm
+from statsmodels.sandbox.regression.predstd import wls_prediction_std
+
 
 
 
@@ -56,6 +59,35 @@ def na_check(df):
     plt.savefig('missing value check.jpg')
     
     return na
+    
+ 
+ 
+def value_count(df):
+    
+    count = []
+    cols = df.columns
+    
+    for col in cols:
+       count.append(len(df[col].value_counts()))
+       
+    count = pd.DataFrame({'value':count, 'name':cols})
+    count.sort_values(by='value', ascending=True, inplace=True)
+    count.reset_index(inplace=True, drop=True)
+
+    return count
+ 
+ 
+ 
+def parse_dummy(df,col):
+    df[col].fillna(0, inplace=True)
+    dummies = pd.get_dummies(df[col], prefix=col, drop_first=True)
+    df = pd.concat([df,dummies], axis=1)
+    del df[col]
+    return df
+    
+    
+
+
     
  
 
@@ -106,3 +138,23 @@ def data_partition(df,st,ed,spt,date_col,predition_col):
     test_x = testing.ix[:,testing.columns != predition_col]
 
     return train_x,train_y,test_x,test_y
+    
+    
+    
+    
+def regression(trainx,trainy,testx,testy,cov='HAC',nw_maxlags=12,pred_alpha=0.125):
+    
+    if cov=='HAC':
+        result=sm.OLS(trainy,trainx)\
+        .fit(cov_type=cov,cov_kwds={'maxlags':nw_maxlags}) 
+    else:
+        result=sm.OLS(trainy,trainx)\
+        .fit(cov_type=cov) 
+   
+    print(result.summary())
+   
+    prstd, iv_l, iv_u = wls_prediction_std(result,exog=testx,alpha=pred_alpha)
+    y_hat=result.predict(testx)  
+    pred=pd.DataFrame({'pred':y_hat,'ub':iv_u,'lb':iv_l},index=testx.index)
+    
+    return pred
