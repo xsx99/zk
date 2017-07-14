@@ -45,7 +45,7 @@ na=lb.na_check(train)
 
 
 # feature against dependent variable plot
-lb.feature_plot(train,'transactiondate','logerror')
+#lb.feature_plot(train,'transactiondate','logerror')
 
 # parce catgorical variables
 value_count = lb.value_count(train)
@@ -101,13 +101,20 @@ to_be_processed = [
 
 train = train.ix[:,list(set(train.columns).difference(to_be_processed))]
 
-#check na
+#check and renmove na
 na=lb.na_check(train)
-
+train = train.ix[:,train.columns.isin(list(na.ix[na['value']>0.8,'name']))]
+train = train.dropna()
 cols = train.columns
+to_be_removed = ['landtaxvaluedollarcnt','structuretaxvaluedollarcnt','taxvaluedollarcnt']
 for col in cols:
-    print(train.ix[pd.isnull(train[col]),col])
-    
+     if len(train.ix[pd.isnull(train[col]),col]) > 0:
+         print(col)
+         if col in to_be_removed:
+             train = train.ix[:,~pd.isnull(train[col])]
+         else:
+             train.ix[pd.isnull(train[col]),col] = np.mean(train[col])
+   
 # scale variables
 
 # sperate training set to be two parts, for training and validation each
@@ -116,9 +123,15 @@ min(train['transactiondate'])+dt.timedelta(days=90),\
 min(train['transactiondate'])+dt.timedelta(days=50),'transactiondate','logerror')
 
 
-pred = lb.regression(train_x.ix[:,train_x.columns != 'transactiondate'],\
-train_y,test_x.ix[:,test_x.columns != 'transactiondate'],test_y)
+#pred = lb.regression(train_x.ix[:,train_x.columns != 'transactiondate'],\
+#train_y,test_x.ix[:,test_x.columns != 'transactiondate'],test_y)
 
+
+# random forest parameters to be optimized: n_trees, max_depth, max_features
+param_grid={"n_trees":[100,200,500],"max_depth":[4,6,8],"max_features":['sqrt',0.6,0.8]} 
+params=lb.gridsearch(lb.rf,param_grid,train_x,\
+                     train_y,test_x,test_y)
+print(params.iloc[0,1])
 
 
 

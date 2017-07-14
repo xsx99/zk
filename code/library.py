@@ -17,6 +17,11 @@ import statsmodels.formula.api as sm
 from statsmodels.sandbox.regression.predstd import wls_prediction_std
 
 
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.linear_model import Lasso
+from sklearn.preprocessing import StandardScaler
+from sklearn.grid_search import ParameterGrid
+
 
 
 def pacf_plot(var,I=0):
@@ -133,9 +138,11 @@ def data_partition(df,st,ed,spt,date_col,predition_col):
     training = df.ix[(df[date_col]>st)&(df[date_col]<=spt),:]
     testing = df.ix[(df[date_col]>spt)&(df[date_col]<=ed)]
     train_y = training[predition_col]
-    train_x = training.ix[:,training.columns != predition_col]
+    train_x = training.ix[:, ~training.columns.isin([predition_col,\
+    'transactiondate','parceid'])]
     test_y = testing[predition_col]
-    test_x = testing.ix[:,testing.columns != predition_col]
+    test_x = testing.ix[:, ~testing.columns.isin([predition_col,\
+    'transactiondate','parceid'])]
 
     return train_x,train_y,test_x,test_y
     
@@ -158,3 +165,112 @@ def regression(trainx,trainy,testx,testy,cov='HAC',nw_maxlags=12,pred_alpha=0.12
     pred=pd.DataFrame({'pred':y_hat,'ub':iv_u,'lb':iv_l},index=testx.index)
     
     return pred
+    
+    
+    
+    
+    
+def gridsearch(model,param_grid,x_train,y_train,x_test,y_test):
+    
+    ''' perform grid search of optimal parameters
+    
+        Parameters
+        ----------
+        x_train: pandas dataframe
+            all feature values in training set
+        y_train: pandas series
+            all target values in training set
+        x_test: pandas dataframe
+            all feature values in testing set
+        y_test: pandas series
+            all target values in testing set
+        model: a prediction model function
+            model must output mse
+        param_grid: dictionary
+            contains all possible values of each parameter        
+        
+        returns
+        -------
+        result: dictionary
+            contains the set of parameter values 
+            generating the smallest mse
+            
+    '''
+    
+    parms=list(ParameterGrid(param_grid))
+    maes=[]
+    stds=[]
+    for parm in parms:
+        mae,std,pred=model(x_train,y_train,x_test,y_test,**parm)    
+        maes.append(mae)
+        stds.append(std)
+    result=pd.DataFrame({'parms':parms,'mae':maes,'std':stds})
+    result.sort_values(by='mse',ascending=True,inplace=True)
+    return result
+    
+    
+    
+    
+    
+    
+def rf(x_train,y_train,x_test,y_test,n_trees,max_depth,\
+max_features,plot_impt=False,**kwargs):
+    
+    ''' random forest model
+    
+        Parameters
+        ----------
+        x_train: pandas dataframe
+            all feature values in training set
+        y_train: pandas series
+            all target values in training set
+        x_test: pandas dataframe
+            all feature values in testing set
+        y_test: pandas series
+            all target values in testing set
+        n_trees: integer
+            number of trees
+        max_depth: integer
+            maximum depth of each tree
+        max_features: integer
+            maximum number of features to be 
+            considered when decising split point
+        plot_impt: boolean (optional)
+            plot feature importance or not
+        **kwargs: other parameters 
+            passed to RandomForestRegressor function
+        
+        returns
+        -------
+        mse: float
+            mean squared error of predictions
+        std: float
+            standar error of prediction residuals
+        rf_pred: pandas series
+            predicted value   
+            
+    '''
+    
+    cols=x_train.columns
+    rf=RandomForestRegressor(n_estimators=n_trees,\
+    max_depth=max_depth,max_features=max_features,criterion='mae',**kwargs)
+    rf.fit(x_train,y_train)
+    feature_importance=rf.feature_importances_
+    feature_importance=pd.DataFrame({'col':cols,'score':feature_importance})
+    feature_importance.sort_values(by='score',ascending=False,inplace=True)
+    rf_pred=rf.predict(x_test)
+    mae=np.mean(np.abs(rf_pred-y_test))
+    std=np.std(rf_pred-y_test)  
+    
+    if (plot_impt==True):
+       fig, ax = plt.subplots() 
+       ax.barh(np.arange(feature_importance.shape[0]), \
+       feature_importance['score'], align='center',\
+       color='green')
+       ax.set_yticks(np.arange(feature_importance.shape[0]))
+       ax.set_yticklabels(feature_importance['col'])
+       ax.invert_yaxis()  # labels read top-to-bottom
+       ax.set_xlabel('Feature Importance')
+       ax.set_title('Random Forest Feature Importance')
+
+    return mae,std,rf_pred
