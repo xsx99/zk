@@ -201,6 +201,7 @@ def gridsearch(model,param_grid,x_train,y_train,x_test,y_test):
     maes=[]
     stds=[]
     for parm in parms:
+        print(parm)
         mae,std,pred=model(x_train,y_train,x_test,y_test,**parm)    
         maes.append(mae)
         stds.append(std)
