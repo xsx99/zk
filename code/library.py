@@ -12,6 +12,7 @@ import datetime as dt
 
 import matplotlib.pyplot as plt
 
+import scipy as sp
 import statsmodels.tsa.api as tsa
 import statsmodels.formula.api as sm
 from statsmodels.sandbox.regression.predstd import wls_prediction_std
@@ -150,6 +151,22 @@ def data_partition(df,st,ed,spt,date_col,predition_col):
     
     
     
+def svd_figures(features_svd,n):
+    
+    ''' Perform SVD analysis of given data
+        plot cumulative singular value 
+        variables are sorted by singular value in descending order
+    '''
+    
+    [u,s1,d]=sp.sparse.linalg.svds(features_svd,k=n)  
+    total=sum(s1)
+    included=np.cumsum(s1)
+    plt.figure(figsize=(10,2.5))    
+    plt.plot(included/total,linewidth=2)
+    plt.title('Singular Value Decay')
+    plt.xlabel('Number of Features')
+    plt.ylabel('Singular Values as Percentage')   
+    plt.show()    
     
     
     

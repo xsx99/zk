@@ -151,6 +151,15 @@ for col in cols:
 
 
 #==============================================================================
+# dimension reduction
+#==============================================================================
+train_x,train_y,testx,testy = lb.data_partition(train,min(train['transactiondate']),\
+max(train['transactiondate']),\
+max(train['transactiondate']),'transactiondate','logerror')
+lb.svd_figures(train_x)
+
+
+#==============================================================================
 # data paritition
 #==============================================================================
 # sperate training set to be two parts, for training and validation each
