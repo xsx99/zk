@@ -256,7 +256,7 @@ def gridsearch(model,param_grid,x_train,y_train,x_test,y_test):
         maes.append(mae)
         stds.append(std)
     result=pd.DataFrame({'parms':parms,'mae':maes,'std':stds})
-    result.sort_values(by='mse',ascending=True,inplace=True)
+    result.sort_values(by='mae',ascending=True,inplace=True)
     return result
     
     
