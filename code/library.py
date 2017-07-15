@@ -82,6 +82,8 @@ def value_count(df):
     return count
  
  
+    
+    
  
 def parse_dummy(df,col):
     df[col].fillna(0, inplace=True)
@@ -100,9 +102,7 @@ def feature_plot(df,date_col,prediction_col):
     cols = list(df.columns)
     cols.remove(date_col)
     cols.remove(prediction_col)
-    cols.remove('propertycountylandusecode')
-    cols.remove('propertyzoningdesc')
-    cols.remove('taxdelinquencyflag')
+    
     for col in cols:
         
         plt.figure()
@@ -140,13 +140,58 @@ def data_partition(df,st,ed,spt,date_col,predition_col):
     train_y = training[predition_col]
     train_x = training.ix[:, ~training.columns.isin([predition_col,\
     'transactiondate','parceid'])]
+    train_x = train_x.astype(float)                                                 
     test_y = testing[predition_col]
     test_x = testing.ix[:, ~testing.columns.isin([predition_col,\
     'transactiondate','parceid'])]
-
+    test_x = test_x.astype(float)                                             
+                                                  
     return train_x,train_y,test_x,test_y
     
     
+
+
+def compare_models(actual,*args):
+    
+    ''' Comparison of testing results of different models
+        
+        Comparison metrics
+        ------------------
+        mean squared errors of testing results
+        standard error of differences between predicted and actual value in testing set
+        Plot of actual value, predicted value and prediction interval
+        
+        
+        Parameters
+        ----------
+        actual: pandas series
+            dependent variable actual value in testing set
+        *args: pandas dataframe
+            output of regression function
+            depedent variable predicted value in testing set
+    '''
+    
+    mae=[]
+    std=[]
+    for pred in args:
+        mae.append(np.mean(np.abs(actual-pred['pred'])))
+        std.append(np.std(actual-pred['pred']))
+    print('Mean Absolute Errors',mae)
+    print('Standard Error of residuals',std)
+    
+    actual.reset_index(drop=True, inplace=True)
+    pred.reset_index(drop=True, inplace=True)
+    
+    for pred in args:
+        plt.figure(figsize=(40,10))
+        plt.plot(actual,label='Actual')
+        plt.scatter(pred.index,pred['pred'],color='red',label='Prediction')
+        plt.plot(pred['lb'], linestyle='dashed',label='Upper Bound',color='green')
+        plt.plot(pred['ub'], linestyle='dashed',label='Lower Bound',color='green')
+        plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+
+        
+
     
     
 def regression(trainx,trainy,testx,testy,cov='HAC',nw_maxlags=12,pred_alpha=0.125):
@@ -202,7 +247,8 @@ def gridsearch(model,param_grid,x_train,y_train,x_test,y_test):
     stds=[]
     for parm in parms:
         print(parm)
-        mae,std,pred=model(x_train,y_train,x_test,y_test,**parm)    
+        mae,std,pred=model(x_train,y_train,x_test,y_test,**parm)   
+        print(mae)
         maes.append(mae)
         stds.append(std)
     result=pd.DataFrame({'parms':parms,'mae':maes,'std':stds})
