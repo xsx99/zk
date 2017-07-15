@@ -43,7 +43,7 @@ def pacf_plot(var,I=0):
 
 
 
-def na_check(df):
+def na_check(df, name, plot=False):
     na = []
     cols = df.columns
     n = df.shape[0]
@@ -53,15 +53,16 @@ def na_check(df):
     na=pd.DataFrame({'value':na, 'name':cols})
     na.sort_values(by='value', ascending=True, inplace=True)
     na.reset_index(inplace=True, drop=True)
-
-    plt.figure(figsize=(10,15))
-    plt.barh(na.index, na['value'], align='center')
-    plt.yticks(na.index, na['name'])
     
-    plt.xlabel('Missing Value%')
-    plt.title('Feature Missing Value Analysis')
-    plt.tight_layout()
-    plt.savefig('missing value check.jpg')
+    if plot==True:
+        plt.figure(figsize=(10,15))
+        plt.barh(na.index, na['value'], align='center')
+        plt.yticks(na.index, na['name'])
+        
+        plt.xlabel('Missing Value%')
+        plt.title('Feature Missing Value Analysis')
+        plt.tight_layout()
+        plt.savefig(name+' missing value check.jpg')
     
     return na
     
@@ -153,7 +154,7 @@ def data_partition(df,st,ed,spt,date_col,predition_col):
     
     
     
-def compare_models(actual,*args):
+def compare_models(actual,*args,plot=False):
     
     ''' Comparison of testing results of different models
         
@@ -184,13 +185,14 @@ def compare_models(actual,*args):
     actual.reset_index(drop=True, inplace=True)
     pred.reset_index(drop=True, inplace=True)
     
-    for pred in args:
-        plt.figure(figsize=(40,10))
-        plt.plot(actual,label='Actual')
-        plt.scatter(pred.index,pred['pred'],color='red',label='Prediction')
-        plt.plot(pred['lb'], linestyle='dashed',label='Upper Bound',color='green')
-        plt.plot(pred['ub'], linestyle='dashed',label='Lower Bound',color='green')
-        plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    if plot==True:
+        for pred in args:
+            plt.figure(figsize=(40,10))
+            plt.plot(actual,label='Actual')
+            plt.scatter(pred.index,pred['pred'],color='red',label='Prediction')
+            plt.plot(pred['lb'], linestyle='dashed',label='Upper Bound',color='green')
+            plt.plot(pred['ub'], linestyle='dashed',label='Lower Bound',color='green')
+            plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
         
         
         
@@ -198,7 +200,7 @@ def compare_models(actual,*args):
         
         
     
-def regression(trainx,trainy,testx,testy,cov='HAC',nw_maxlags=12,pred_alpha=0.125):
+def regression(trainx,trainy,testx,cov='HAC',nw_maxlags=12,pred_alpha=0.125):
     
     if cov=='HAC':
         result=sm.OLS(trainy,trainx)\
@@ -209,17 +211,17 @@ def regression(trainx,trainy,testx,testy,cov='HAC',nw_maxlags=12,pred_alpha=0.12
    
     print(result.summary())
    
-    prstd, iv_l, iv_u = wls_prediction_std(result,exog=testx,alpha=pred_alpha)
+    #prstd, iv_l, iv_u = wls_prediction_std(result,exog=testx,alpha=pred_alpha)
     y_hat=result.predict(testx)  
-    pred=pd.DataFrame({'pred':y_hat,'ub':iv_u,'lb':iv_l},index=testx.index)
-    
+    #pred=pd.DataFrame({'pred':y_hat,'ub':iv_u,'lb':iv_l},index=testx.index)
+    pred=pd.DataFrame({'pred':y_hat},index=testx.index)
     return pred
     
     
     
     
     
-def gridsearch(model,param_grid,x_train,y_train,x_test,y_test):
+def gridsearch(model,param_grid,x_train,y_train,x_test):
     
     ''' perform grid search of optimal parameters
     
@@ -251,7 +253,7 @@ def gridsearch(model,param_grid,x_train,y_train,x_test,y_test):
     stds=[]
     for parm in parms:
         print(parm)
-        mae,std,pred=model(x_train,y_train,x_test,y_test,**parm)   
+        mae,std,pred=model(x_train,y_train,x_test,**parm)   
         print(mae)
         maes.append(mae)
         stds.append(std)
@@ -325,3 +327,43 @@ max_features,plot_impt=False,**kwargs):
        ax.set_title('Random Forest Feature Importance')
 
     return mae,std,rf_pred
+
+  
+    
+    
+    
+def rf_predict(x_train,y_train,x_test,n_trees,max_depth,\
+max_features,**kwargs):
+    
+    
+    rf=RandomForestRegressor(n_estimators=n_trees,\
+    max_depth=max_depth,max_features=max_features,criterion='mae',**kwargs)
+    rf.fit(x_train,y_train)
+    #feature_importance=rf.feature_importances_
+    #feature_importance=pd.DataFrame({'col':cols,'score':feature_importance})
+    #feature_importance.sort_values(by='score',ascending=False,inplace=True)
+    rf_pred=rf.predict(x_test)
+    #mae=np.mean(np.abs(rf_pred-y_test))
+    #std=np.std(rf_pred-y_test)      
+
+    return rf_pred    
+    
+
+    
+    
+def rf_train(x_train,y_train,x_test,y_test,n_trees,max_depth,\
+max_features,**kwargs):
+       
+    
+    rf=RandomForestRegressor(n_estimators=n_trees,\
+    max_depth=max_depth,max_features=max_features,criterion='mae',**kwargs)
+    rf.fit(x_train,y_train)
+  
+    rf_pred=rf.predict(x_test)
+    mae=np.mean(np.abs(rf_pred-y_test))
+    std=np.std(rf_pred-y_test)  
+      
+
+    return mae,std,rf_pred
+
+    
