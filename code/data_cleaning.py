@@ -163,9 +163,9 @@ min(train['transactiondate'])+dt.timedelta(days=50),\
 'transactiondate','logerror')
 
 param_grid={"n_trees":[100],"max_depth":[4,6,8],"max_features":['sqrt',0.6,0.8]} 
-#params=lb.gridsearch(lb.rf,param_grid,train_x,\
-#                     train_y,test_x,test_y)
-#print(params.iloc[0,1])
+params=lb.gridsearch(lb.rf,param_grid,train_x,\
+                     train_y,test_x,test_y)
+print(params.iloc[0,1])
 
 
 
