@@ -21,7 +21,7 @@ train['transactiondate'] = pd.to_datetime(train['transactiondate'])
 
 
 # load feature set
-feature = pd.read_csv('../data/properties_2016_subset.csv')
+feature = pd.read_csv('../data/properties_2016.csv')
 #feature = pd.read_csv('../data/properties_2016.csv')
 
 
@@ -30,8 +30,8 @@ feature = pd.read_csv('../data/properties_2016_subset.csv')
 # autocorrelation check
 #=============================================================================
 # explore time series model
-logerror = train.groupby(['transactiondate'])['logerror'].mean()   
-lb.pacf_plot(logerror)
+#logerror = train.groupby(['transactiondate'])['logerror'].mean()   
+#lb.pacf_plot(logerror)
 
 
 
@@ -53,8 +53,8 @@ feature['yearbuilt'] = feature['yearbuilt'].apply(lambda x: 2016-x)
 # missing value treatment
 #=============================================================================
 # check missing value
-na=lb.na_check(train, plot=True, name='training set')
-na_test=lb.na_check(feature, plot=True, name='test set')
+#na=lb.na_check(train, plot=True, name='training set')
+#na_test=lb.na_check(feature, plot=True, name='test set')
 
 
 
@@ -148,7 +148,7 @@ to_be_removed = ['landtaxvaluedollarcnt','structuretaxvaluedollarcnt',\
 for col in cols:
      if len(feature.ix[pd.isnull(feature[col]),col]) > 0:
          if col in to_be_removed:
-             feature = feature.ix[~pd.isnull(feature[col]),:]
+             del feature[col]
          else:
              feature.ix[pd.isnull(feature[col]),col] = np.mean(feature[col]) 
              
@@ -172,32 +172,36 @@ to_be_scaled.remove('logerror')
 train[to_be_scaled] = lb.scaler(train, to_be_scaled)
 
 
+cnts = lb.value_count(feature)
+to_be_scaled = list(cnts.ix[cnts['value']>2,'name'])
+to_be_scaled.remove('parcelid')
+feature[to_be_scaled] = lb.scaler(feature, to_be_scaled)
 
 
 #==============================================================================
 # dimension reduction and data partition
 #==============================================================================
-train_x,train_y,testx,testy = lb.data_partition(train,min(train['transactiondate']),\
-max(train['transactiondate']),\
-max(train['transactiondate']),'transactiondate','logerror')
+#train_x,train_y,testx,testy = lb.data_partition(train,min(train['transactiondate']),\
+#max(train['transactiondate']),\
+#max(train['transactiondate']),'transactiondate','logerror')
 
-lb.svd_figures(train_x,50)
+#lb.svd_figures(train_x,50)
 
 
 
-train_x,train_y,test_x,test_y = lb.data_partition(train,min(train['transactiondate']),\
-min(train['transactiondate'])+dt.timedelta(days=90),\
-min(train['transactiondate'])+dt.timedelta(days=70),'transactiondate','logerror')
+#train_x,train_y,test_x,test_y = lb.data_partition(train,min(train['transactiondate']),\
+#min(train['transactiondate'])+dt.timedelta(days=90),\
+#min(train['transactiondate'])+dt.timedelta(days=70),'transactiondate','logerror')
 
-train_x,test_x = lb.dimension_reduction(train_x,test_x,50)
+#train_x,test_x = lb.dimension_reduction(train_x,test_x,50)
 
 
 
 #==============================================================================
 # OLS
 #==============================================================================
-pred = lb.regression(train_x,train_y,test_x)
-lb.compare_models(test_y, pred,plot=False)
+#pred = lb.regression(train_x,train_y,test_x)
+#lb.compare_models(test_y, pred,plot=False)
 
 
 
@@ -228,19 +232,30 @@ lb.compare_models(test_y, pred,plot=False)
 # output prediction on test set
 #==============================================================================
 feature['month_10'] = 1
+for i in range(2,13,1):
+    if i!=10:
+        feature['month_'+str(i)] = 0
+
 
 train_x,train_y,testx,testy = lb.data_partition(train,min(train['transactiondate']),\
 max(train['transactiondate']),\
 max(train['transactiondate']),'transactiondate','logerror')
 
-train_x,feature = lb.dimension_reduction(train_x,feature,50)
+parcelid = feature['parcelid']
+del feature['parcelid']
 
-lg_pred = lb.regression(train_x,train_y,feature)
+print('Dimension reduction start...')
+if train_x.shape[1] == feature.shape[1]:
+    
+     train_x,feature = lb.dimension_reduction(train_x,feature,50)
 
-print('Random Forest Forecasting start...')
-rf_pred = lb.rf_predict(train_x,train_y,feature,n_trees=100,max_depth=8,\
+     lg_pred = lb.regression(train_x,train_y,feature)
+
+     print('Random Forest Forecasting start...')
+     rf_pred = lb.rf_predict(train_x,train_y,feature,n_trees=100,max_depth=8,\
                 max_features='sqrt')
 
+     result = pd.DataFrame({'parcelid':parcelid, 'lg':lg_pred, 'rf':rf_pred})
 
-
-
+else:
+    print('Dimensions do not agree...')
