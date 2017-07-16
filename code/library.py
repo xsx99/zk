@@ -20,8 +20,9 @@ from statsmodels.sandbox.regression.predstd import wls_prediction_std
 
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import Lasso
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import MinMaxScaler
 from sklearn.grid_search import ParameterGrid
+from sklearn.decomposition import TruncatedSVD
 
 
 
@@ -94,10 +95,17 @@ def parse_dummy(df,col):
     
     
 
-
     
+    
+
+def scaler(df,cols):
+    min_max = MinMaxScaler()
+    df_minmax=min_max.fit_transform(df[cols])    
+    return df_minmax
  
 
+    
+    
 def feature_plot(df,date_col,prediction_col):
     cols = list(df.columns)
     cols.remove(date_col)
@@ -139,11 +147,11 @@ def data_partition(df,st,ed,spt,date_col,predition_col):
     testing = df.ix[(df[date_col]>spt)&(df[date_col]<=ed)]
     train_y = training[predition_col]
     train_x = training.ix[:, ~training.columns.isin([predition_col,\
-    'transactiondate','parceid'])]
+    date_col,'parcelid'])]
     train_x = train_x.astype(float)
     test_y = testing[predition_col]
     test_x = testing.ix[:, ~testing.columns.isin([predition_col,\
-    'transactiondate','parceid'])]
+    date_col,'parcelid'])]
     test_x = test_x.astype(float)
 
     return train_x,train_y,test_x,test_y
@@ -158,17 +166,62 @@ def svd_figures(features_svd,n):
         variables are sorted by singular value in descending order
     '''
     
-    [u,s1,d]=sp.sparse.linalg.svds(features_svd,k=n)  
-    total=sum(s1)
-    included=np.cumsum(s1)
+#==============================================================================
+#     [u,s1,d]=sp.sparse.linalg.svds(features_svd,k=n)  
+#     total=sum(s1)
+#     included=np.cumsum(s1)
+#     plt.figure(figsize=(10,2.5))    
+#     plt.plot(included/total,linewidth=2)
+#     plt.title('Singular Value Decay')
+#     plt.xlabel('Number of Features')
+#     plt.ylabel('Singular Values as Percentage')   
+#     plt.show()    
+#==============================================================================
+    
+    svd = TruncatedSVD(n_components=n, n_iter=100, random_state=42)
+    svd.fit(features_svd)
+    features_svd_trans = svd.transform(features_svd)
+    explained = np.cumsum(svd.explained_variance_ratio_)*100
+    print(explained)
     plt.figure(figsize=(10,2.5))    
-    plt.plot(included/total,linewidth=2)
+    plt.plot(explained,linewidth=2)
     plt.title('Singular Value Decay')
     plt.xlabel('Number of Features')
     plt.ylabel('Singular Values as Percentage')   
-    plt.show()    
+    plt.show() 
+    return pd.DataFrame(features_svd_trans)
     
     
+def dimension_reduction(x_train, x_test,n):
+    svd = TruncatedSVD(n_components=n, n_iter=100, random_state=42)
+    svd.fit(x_train)
+    x_train_red = svd.transform(x_train)
+    x_test_red = svd.transform(x_test)
+    return pd.DataFrame(x_train_red), pd.DataFrame(x_test_red)
+    
+
+    
+def lasso(x_train,y_train,alpha=2):
+    
+    '''Perform variable selection using Lasso regression
+       alpha: control number of variables with non-zero coefficients
+       
+       returns
+       ------
+       df: pandas dataframe
+       variables with lasso coefficient      
+    '''
+    
+    df=pd.DataFrame()
+    df['col']=x_train.columns
+    lasso=Lasso(alpha=alpha, max_iter=10000)
+    lasso.fit(x_train,y_train)
+    column_name = 'Alpha = %f' % alpha
+    df[column_name]=lasso.coef_
+    df.sort_values(by=column_name,ascending=False,inplace=True)
+    return df
+    
+
     
     
 def compare_models(actual,*args,plot=False):
@@ -218,6 +271,10 @@ def compare_models(actual,*args,plot=False):
         
     
 def regression(trainx,trainy,testx,cov='HAC',nw_maxlags=12,pred_alpha=0.125):
+    
+    trainx.reset_index(drop=True, inplace=True)
+    trainy.reset_index(drop=True, inplace=True)
+    testx.reset_index(drop=True, inplace=True)
     
     if cov=='HAC':
         result=sm.OLS(trainy,trainx)\

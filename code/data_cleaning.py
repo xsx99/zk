@@ -20,21 +20,19 @@ train = pd.read_csv('../data/train_2016_v2.csv')
 train['transactiondate'] = pd.to_datetime(train['transactiondate'])
 
 
+# load feature set
+feature = pd.read_csv('../data/properties_2016_subset.csv')
+#feature = pd.read_csv('../data/properties_2016.csv')
 
-# subset feature set
-feature = pd.read_csv('../data/properties_2016.csv')
-#parcelid = list(feature['parcelid'])
-#feature = feature.ix[feature['parcelid'].isin(parcelid)]
-#feature.to_csv('../data/properties_2016_subset.csv', index=False)
 
 
 #==============================================================================
 # autocorrelation check
 #=============================================================================
-
 # explore time series model
 logerror = train.groupby(['transactiondate'])['logerror'].mean()   
 lb.pacf_plot(logerror)
+
 
 
 #==============================================================================
@@ -43,9 +41,12 @@ lb.pacf_plot(logerror)
 # add month into feature set
 train['month'] = train['transactiondate'].apply(lambda x: x.month)
 train = pd.merge(feature, train, on='parcelid', how='right')
+
+
 # calindar variable to be converted to years
 train['yearbuilt'] = train['yearbuilt'].apply(lambda x: 2016-x)
 feature['yearbuilt'] = feature['yearbuilt'].apply(lambda x: 2016-x)
+
 
 
 #==============================================================================
@@ -55,9 +56,12 @@ feature['yearbuilt'] = feature['yearbuilt'].apply(lambda x: 2016-x)
 na=lb.na_check(train, plot=True, name='training set')
 na_test=lb.na_check(feature, plot=True, name='test set')
 
+
+
 # number of values count in each variable
 value_count = lb.value_count(train)
 cat = value_count.ix[value_count['value']<100]
+
 
 
 #boolean variables needed to fill in missing values only
@@ -67,6 +71,7 @@ na_vars = ['poolcnt','pooltypeid2','pooltypeid10','pooltypeid7',\
 for var in na_vars:
     train[var].fillna(0, inplace=True)
     feature[var].fillna(0,inplace=True)
+
 
     
 # boolean variables needed to fill in missing values and change to boolean type 
@@ -81,12 +86,13 @@ for var in bl_vars:
     feature[var] = feature[var].astype(float)
 
 
+    
 # variables needed to convert to dummy variables
 cats = ['storytypeid','decktypeid','buildingclasstypeid',\
 'typeconstructiontypeid','regionidcounty','assessmentyear',\
 'fips','numberofstories','threequarterbathnbr',\
 'fireplacecnt','architecturalstyletypeid','airconditioningtypeid',\
-'buildingqualitytypeid','unitcnt','finishedsquarefeet13',\
+'buildingqualitytypeid','unitcnt',\
 'taxdelinquencyyear','heatingorsystemtypeid',\
 'propertylandusetypeid','propertycountylandusecode','regionidcity']
 
@@ -94,8 +100,11 @@ for cat in cats:
     train = lb.parse_dummy(train,cat)
     feature = lb.parse_dummy(feature,cat)
 
+    
+    
 # process month variable    
 train = lb.parse_dummy(train,'month')
+
 
 
 # variables not yet processed
@@ -111,6 +120,9 @@ to_be_processed = [
 train = train.ix[:,list(set(train.columns).difference(to_be_processed))]
 feature = feature.ix[:,list(set(feature.columns).difference(to_be_processed))]
 
+
+
+
 #check and renmove na
 #variables with more than 20% na: throw away
 #variables with less than 20% na: fill na with sample average
@@ -125,12 +137,11 @@ to_be_removed = ['landtaxvaluedollarcnt','structuretaxvaluedollarcnt',\
 for col in cols:
      if len(train.ix[pd.isnull(train[col]),col]) > 0:
          if col in to_be_removed:
-             train = train.ix[~pd.isnull(train[col]),:]
+             del train[col]
          else:
              train.ix[pd.isnull(train[col]),col] = np.mean(train[col])
 
-             
-            
+                         
 cols = feature.columns
 to_be_removed = ['landtaxvaluedollarcnt','structuretaxvaluedollarcnt',\
 'taxvaluedollarcnt']
@@ -139,33 +150,47 @@ for col in cols:
          if col in to_be_removed:
              feature = feature.ix[~pd.isnull(feature[col]),:]
          else:
-             feature.ix[pd.isnull(feature[col]),col] = np.mean(feature[col])             
+             feature.ix[pd.isnull(feature[col]),col] = np.mean(feature[col]) 
+             
+             
+             
+             
 #==============================================================================
-# data visualization
+# data visualization and scaling
 #==============================================================================
 # feature against dependent variable plot
 #lb.feature_plot(train,'transactiondate','logerror')
 
-             
+ 
+            
 # scale variables
+cnts = lb.value_count(train)
+to_be_scaled = list(cnts.ix[cnts['value']>2,'name'])
+to_be_scaled.remove('parcelid')
+to_be_scaled.remove('transactiondate')
+to_be_scaled.remove('logerror')
+train[to_be_scaled] = lb.scaler(train, to_be_scaled)
+
+
 
 
 #==============================================================================
-# dimension reduction
+# dimension reduction and data partition
 #==============================================================================
 train_x,train_y,testx,testy = lb.data_partition(train,min(train['transactiondate']),\
 max(train['transactiondate']),\
 max(train['transactiondate']),'transactiondate','logerror')
-lb.svd_figures(train_x)
+
+lb.svd_figures(train_x,50)
 
 
-#==============================================================================
-# data paritition
-#==============================================================================
-# sperate training set to be two parts, for training and validation each
+
 train_x,train_y,test_x,test_y = lb.data_partition(train,min(train['transactiondate']),\
 min(train['transactiondate'])+dt.timedelta(days=90),\
 min(train['transactiondate'])+dt.timedelta(days=70),'transactiondate','logerror')
+
+train_x,test_x = lb.dimension_reduction(train_x,test_x,50)
+
 
 
 #==============================================================================
@@ -174,24 +199,27 @@ min(train['transactiondate'])+dt.timedelta(days=70),'transactiondate','logerror'
 pred = lb.regression(train_x,train_y,test_x)
 lb.compare_models(test_y, pred,plot=False)
 
+
+
+
 #==============================================================================
 # Train Random Forest
 #==============================================================================
-
 # random forest parameters to be optimized: n_trees, max_depth, max_features
-train_x,train_y,vld_x,vld_y = lb.data_partition(train,min(train['transactiondate']),\
-min(train['transactiondate'])+dt.timedelta(days=70),\
-min(train['transactiondate'])+dt.timedelta(days=50),\
-'transactiondate','logerror')
 
-param_grid={"n_trees":[100],"max_depth":[4,6,8],"max_features":['sqrt',0.6,0.8]} 
-params=lb.gridsearch(lb.rf_train,param_grid,train_x,\
-                     train_y,vld_x,vld_y)
-print(params.iloc[0,1])
-
-pred = lb.rf_predict(train_x,train_y,test_x,n_trees=100,max_depth=8,\
-                     max_features='sqrt')
-lb.compare_models(test_y, pred,plot=False)
+#train_x,train_y,vld_x,vld_y = lb.data_partition(train,min(train['transactiondate']),\
+#min(train['transactiondate'])+dt.timedelta(days=70),\
+#min(train['transactiondate'])+dt.timedelta(days=50),\
+#'transactiondate','logerror')
+#
+#param_grid={"n_trees":[100],"max_depth":[4,6,8],"max_features":['sqrt',0.6,0.8]} 
+#params=lb.gridsearch(lb.rf_train,param_grid,train_x,\
+#                     train_y,vld_x,vld_y)
+#print(params.iloc[0,1])
+#
+#pred = lb.rf_predict(train_x,train_y,test_x,n_trees=100,max_depth=8,\
+#                     max_features='sqrt')
+#lb.compare_models(test_y, pred,plot=False)
 
 
 
@@ -199,18 +227,20 @@ lb.compare_models(test_y, pred,plot=False)
 #==============================================================================
 # output prediction on test set
 #==============================================================================
-
 feature['month_10'] = 1
 
 train_x,train_y,testx,testy = lb.data_partition(train,min(train['transactiondate']),\
 max(train['transactiondate']),\
 max(train['transactiondate']),'transactiondate','logerror')
 
+train_x,feature = lb.dimension_reduction(train_x,feature,50)
 
+lg_pred = lb.regression(train_x,train_y,feature)
+
+print('Random Forest Forecasting start...')
 rf_pred = lb.rf_predict(train_x,train_y,feature,n_trees=100,max_depth=8,\
                 max_features='sqrt')
 
-lg_pred = lb.regression(train_x,train_y,feature)
 
 
 
